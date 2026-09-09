@@ -79,8 +79,13 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    _localStreamId = _engine.buildStreamId(widget.callId, widget.currentUser.id);
-    _calleeIdForInvite = widget.direction == CallDirection.outgoing ? widget.peer.id : widget.currentUser.id;
+    _localStreamId = _engine.buildStreamId(
+      widget.callId,
+      widget.currentUser.id,
+    );
+    _calleeIdForInvite = widget.direction == CallDirection.outgoing
+        ? widget.peer.id
+        : widget.currentUser.id;
     _isCameraEnabled = _isVideoCall;
 
     if (AppConfig.isZegoConfigured) {
@@ -88,20 +93,22 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
     }
 
     if (widget.direction == CallDirection.outgoing) {
-      _inviteSubscription = _callInviteService.watchOutgoing(widget.peer.id).listen((invite) {
-        if (invite == null) return;
-        final previousStatus = _lastKnownInviteStatus;
-        _lastKnownInviteStatus = invite.status;
+      _inviteSubscription = _callInviteService
+          .watchOutgoing(widget.peer.id)
+          .listen((invite) {
+            if (invite == null) return;
+            final previousStatus = _lastKnownInviteStatus;
+            _lastKnownInviteStatus = invite.status;
 
-        if (invite.status == CallInviteStatus.declined && mounted) {
-          Navigator.of(context).pop();
-          return;
-        }
+            if (invite.status == CallInviteStatus.declined && mounted) {
+              Navigator.of(context).pop();
+              return;
+            }
 
-        if (invite.status != previousStatus && mounted) {
-          setState(() {});
-        }
-      });
+            if (invite.status != previousStatus && mounted) {
+              setState(() {});
+            }
+          });
     }
   }
 
@@ -122,37 +129,44 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
     _isSpeakerOn = _engine.isSpeakerOn;
 
     if (_isVideoCall) {
-      final localView = await ZegoExpressEngine.instance.createCanvasView((viewID) {
-        _engine.startPreview(ZegoCanvas(viewID, viewMode: ZegoViewMode.AspectFill));
+      final localView = await ZegoExpressEngine.instance.createCanvasView((
+        viewID,
+      ) {
+        _engine.startPreview(
+          ZegoCanvas(viewID, viewMode: ZegoViewMode.AspectFill),
+        );
       });
       if (mounted) setState(() => _localPreviewView = localView);
     }
   }
 
   void _bindEngineCallbacks() {
-    ZegoExpressEngine.onRoomStreamUpdate = (roomID, updateType, streamList, extendedData) {
-      if (roomID != widget.callId) return;
+    ZegoExpressEngine.onRoomStreamUpdate =
+        (roomID, updateType, streamList, extendedData) {
+          if (roomID != widget.callId) return;
 
-      if (updateType == ZegoUpdateType.Add) {
-        final remoteStream = streamList.firstWhere(
-          (item) => item.streamID != _localStreamId,
-          orElse: () => streamList.first,
-        );
-        if (remoteStream.streamID != _localStreamId) {
-          _playRemoteStream(remoteStream.streamID);
-        }
-      } else if (updateType == ZegoUpdateType.Delete) {
-        if (streamList.any((item) => item.streamID == _remoteStreamId) &&
-            _hasReachedConnected &&
-            _stage != _CallStage.reconnecting) {
-          _startReconnectGracePeriod();
-        }
-      }
-    };
+          if (updateType == ZegoUpdateType.Add) {
+            final remoteStream = streamList.firstWhere(
+              (item) => item.streamID != _localStreamId,
+              orElse: () => streamList.first,
+            );
+            if (remoteStream.streamID != _localStreamId) {
+              _playRemoteStream(remoteStream.streamID);
+            }
+          } else if (updateType == ZegoUpdateType.Delete) {
+            if (streamList.any((item) => item.streamID == _remoteStreamId) &&
+                _hasReachedConnected &&
+                _stage != _CallStage.reconnecting) {
+              _startReconnectGracePeriod();
+            }
+          }
+        };
 
     ZegoExpressEngine.onRoomUserUpdate = (roomID, updateType, userList) {
       if (roomID != widget.callId || !mounted) return;
-      final involvesPeer = userList.any((user) => user.userID == widget.peer.id);
+      final involvesPeer = userList.any(
+        (user) => user.userID == widget.peer.id,
+      );
       if (!involvesPeer) return;
 
       if (updateType == ZegoUpdateType.Add) {
@@ -163,15 +177,16 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
           setState(() => _stage = _CallStage.connected);
         }
       } else if (updateType == ZegoUpdateType.Delete) {
-        if (_hasReachedConnected && _stage != _CallStage.reconnecting) {
-          _startReconnectGracePeriod();
-        }
+        _reconnectGraceTimer?.cancel();
+        _handlePeerLeft();
       }
     };
 
     ZegoExpressEngine.onPlayerQualityUpdate = (streamID, quality) {
       if (streamID != _remoteStreamId || !mounted) return;
-      setState(() => _networkQuality = _engine.mapNetworkQuality(quality.level));
+      setState(
+        () => _networkQuality = _engine.mapNetworkQuality(quality.level),
+      );
     };
   }
 
@@ -188,8 +203,13 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
     _remoteStreamId = streamId;
 
     if (_isVideoCall) {
-      final remoteView = await ZegoExpressEngine.instance.createCanvasView((viewID) {
-        _engine.startPlayingRemoteStream(streamId, canvas: ZegoCanvas(viewID, viewMode: ZegoViewMode.AspectFill));
+      final remoteView = await ZegoExpressEngine.instance.createCanvasView((
+        viewID,
+      ) {
+        _engine.startPlayingRemoteStream(
+          streamId,
+          canvas: ZegoCanvas(viewID, viewMode: ZegoViewMode.AspectFill),
+        );
       });
       if (mounted) setState(() => _remotePreviewView = remoteView);
     } else {
@@ -217,7 +237,9 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
   }
 
   void _writeInviteStatus(CallInviteStatus status) {
-    _callInviteService.updateStatus(_calleeIdForInvite, status).catchError((_) {});
+    _callInviteService
+        .updateStatus(_calleeIdForInvite, status)
+        .catchError((_) {});
   }
 
   void _endCall() {
@@ -328,7 +350,10 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
         child: Column(
           children: [
             const Spacer(flex: 2),
-            StatusBadge(label: _networkQualityLabel, color: _networkQualityColor),
+            StatusBadge(
+              label: _networkQualityLabel,
+              color: _networkQualityColor,
+            ),
             const SizedBox(height: AppSpacing.xxl),
             _PulsingAvatar(
               name: widget.peer.name,
@@ -336,9 +361,15 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
               isPulsing: _stage == _CallStage.connecting,
             ),
             const SizedBox(height: AppSpacing.xxl),
-            Text(widget.peer.name, style: AppTypography.h1.copyWith(color: Colors.white)),
+            Text(
+              widget.peer.name,
+              style: AppTypography.h1.copyWith(color: Colors.white),
+            ),
             const SizedBox(height: AppSpacing.sm),
-            Text(_statusLabel, style: AppTypography.bodyLarge.copyWith(color: Colors.white60)),
+            Text(
+              _statusLabel,
+              style: AppTypography.bodyLarge.copyWith(color: Colors.white60),
+            ),
             const Spacer(flex: 3),
             _buildControlsRow(),
             const SizedBox(height: AppSpacing.md),
@@ -352,7 +383,8 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
     return Stack(
       children: [
         Positioned.fill(
-          child: _remotePreviewView ??
+          child:
+              _remotePreviewView ??
               Container(
                 decoration: const BoxDecoration(
                   gradient: RadialGradient(
@@ -362,7 +394,11 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
                   ),
                 ),
                 child: Center(
-                  child: UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 60),
+                  child: UserAvatar(
+                    name: widget.peer.name,
+                    photoUrl: widget.peer.photoUrl,
+                    radius: 60,
+                  ),
                 ),
               ),
         ),
@@ -373,7 +409,10 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              StatusBadge(label: _networkQualityLabel, color: _networkQualityColor),
+              StatusBadge(
+                label: _networkQualityLabel,
+                color: _networkQualityColor,
+              ),
               _PeerLabel(name: widget.peer.name, statusLabel: _statusLabel),
             ],
           ),
@@ -388,8 +427,17 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.14), width: 1),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 8))],
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: _localPreviewView ?? Container(color: Colors.black45),
             ),
@@ -406,15 +454,14 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
-              child: const Icon(Icons.videocam_off_rounded, color: Colors.white38, size: 22),
+              child: const Icon(
+                Icons.videocam_off_rounded,
+                color: Colors.white38,
+                size: 22,
+              ),
             ),
           ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 28,
-          child: _buildControlsRow(),
-        ),
+        Positioned(left: 0, right: 0, bottom: 28, child: _buildControlsRow()),
       ],
     );
   }
@@ -472,14 +519,18 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
         ),
         if (_isVideoCall)
           _CallControlButton(
-            icon: _isCameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+            icon: _isCameraEnabled
+                ? Icons.videocam_rounded
+                : Icons.videocam_off_rounded,
             label: 'Camera',
             isActive: !_isCameraEnabled,
             onTap: _onToggleCamera,
           )
         else
           _CallControlButton(
-            icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+            icon: _isSpeakerOn
+                ? Icons.volume_up_rounded
+                : Icons.hearing_rounded,
             label: 'Speaker',
             isActive: _isSpeakerOn,
             onTap: _onToggleSpeaker,
@@ -508,13 +559,18 @@ class _PulsingAvatar extends StatefulWidget {
   final String? photoUrl;
   final bool isPulsing;
 
-  const _PulsingAvatar({required this.name, required this.photoUrl, required this.isPulsing});
+  const _PulsingAvatar({
+    required this.name,
+    required this.photoUrl,
+    required this.isPulsing,
+  });
 
   @override
   State<_PulsingAvatar> createState() => _PulsingAvatarState();
 }
 
-class _PulsingAvatarState extends State<_PulsingAvatar> with SingleTickerProviderStateMixin {
+class _PulsingAvatarState extends State<_PulsingAvatar>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -532,7 +588,9 @@ class _PulsingAvatarState extends State<_PulsingAvatar> with SingleTickerProvide
       animation: _controller,
       builder: (context, child) {
         final scale = widget.isPulsing ? 1 + (_controller.value * 0.08) : 1.0;
-        final opacity = widget.isPulsing ? 0.25 - (_controller.value * 0.15) : 0.0;
+        final opacity = widget.isPulsing
+            ? 0.25 - (_controller.value * 0.15)
+            : 0.0;
         return Stack(
           alignment: Alignment.center,
           children: [
@@ -543,7 +601,10 @@ class _PulsingAvatarState extends State<_PulsingAvatar> with SingleTickerProvide
                 height: 132,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primary.withValues(alpha: opacity), width: 2),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: opacity),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -551,7 +612,11 @@ class _PulsingAvatarState extends State<_PulsingAvatar> with SingleTickerProvide
           ],
         );
       },
-      child: UserAvatar(name: widget.name, photoUrl: widget.photoUrl, radius: 60),
+      child: UserAvatar(
+        name: widget.name,
+        photoUrl: widget.photoUrl,
+        radius: 60,
+      ),
     );
   }
 }
@@ -573,8 +638,14 @@ class _PeerLabel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(name, style: AppTypography.bodyMedium.copyWith(color: Colors.white)),
-          Text(statusLabel, style: AppTypography.caption.copyWith(color: Colors.white70)),
+          Text(
+            name,
+            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+          ),
+          Text(
+            statusLabel,
+            style: AppTypography.caption.copyWith(color: Colors.white70),
+          ),
         ],
       ),
     );
@@ -598,8 +669,12 @@ class _CallControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedColor = isDestructive ? AppColors.error : (isActive ? Colors.white : Colors.white.withValues(alpha: 0.14));
-    final iconColor = isDestructive ? Colors.white : (isActive ? Colors.black87 : Colors.white);
+    final resolvedColor = isDestructive
+        ? AppColors.error
+        : (isActive ? Colors.white : Colors.white.withValues(alpha: 0.14));
+    final iconColor = isDestructive
+        ? Colors.white
+        : (isActive ? Colors.black87 : Colors.white);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -612,12 +687,19 @@ class _CallControlButton extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: EdgeInsets.all(isDestructive ? 18 : 16),
-              child: Icon(icon, color: iconColor, size: isDestructive ? 28 : 24),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: isDestructive ? 28 : 24,
+              ),
             ),
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text(label, style: AppTypography.caption.copyWith(color: Colors.white70)),
+        Text(
+          label,
+          style: AppTypography.caption.copyWith(color: Colors.white70),
+        ),
       ],
     );
   }
@@ -639,8 +721,15 @@ class _CallingNotConfiguredView extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
-                child: const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 26),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.videocam_off_rounded,
+                  color: Colors.white54,
+                  size: 26,
+                ),
               ),
               const SizedBox(height: AppSpacing.xl),
               Text(
