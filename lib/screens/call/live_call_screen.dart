@@ -150,18 +150,22 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
       }
     };
 
-    ZegoExpressEngine.onRoomOnlineUserCountUpdate = (roomID, count) {
+    ZegoExpressEngine.onRoomUserUpdate = (roomID, updateType, userList) {
       if (roomID != widget.callId || !mounted) return;
+      final involvesPeer = userList.any((user) => user.userID == widget.peer.id);
+      if (!involvesPeer) return;
 
-      if (count >= 2) {
+      if (updateType == ZegoUpdateType.Add) {
         if (!_hasReachedConnected) {
           _handleConnected();
         } else if (_stage == _CallStage.reconnecting) {
           _reconnectGraceTimer?.cancel();
           setState(() => _stage = _CallStage.connected);
         }
-      } else if (count < 2 && _hasReachedConnected && _stage != _CallStage.reconnecting) {
-        _startReconnectGracePeriod();
+      } else if (updateType == ZegoUpdateType.Delete) {
+        if (_hasReachedConnected && _stage != _CallStage.reconnecting) {
+          _startReconnectGracePeriod();
+        }
       }
     };
 
@@ -228,7 +232,7 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
     _reconnectGraceTimer?.cancel();
     _inviteSubscription?.cancel();
     ZegoExpressEngine.onRoomStreamUpdate = null;
-    ZegoExpressEngine.onRoomOnlineUserCountUpdate = null;
+    ZegoExpressEngine.onRoomUserUpdate = null;
     ZegoExpressEngine.onPlayerQualityUpdate = null;
 
     if (AppConfig.isZegoConfigured) {
